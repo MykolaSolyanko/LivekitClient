@@ -1,0 +1,86 @@
+syntax = "proto3";
+import "google/protobuf/timestamp.proto";
+option go_package = "github.com/MykolaSolyanko/LivekitClient/protocol";
+
+// That message is going to be used as the container for other messages,
+// by using protobuf framework and helper methods the type of message_type can be determined
+message Message {
+    oneof message_type {
+      Chat chat = 1;
+      Listings listings = 2;
+      RoomState room_state = 3;
+      ChatHistoryRequest chat_history_request = 4;
+      ChatHistoryResponse chat_history_response = 5;
+      Statistics statistics = 6;
+      Reaction reaction = 7;
+    }
+}
+
+
+// Shared messages
+// All messages are going to be in UNICODE format
+message Chat {
+  string message = 1; //str + emoji(like: \uD83D)
+  optional google.protobuf.Timestamp date_time = 2;
+  optional string sender = 3;
+}
+
+// This message is responsible for global user reaction in the event
+message Reaction {
+  string emoji = 1; // emoji(like: \uD83D), Unicode 15.0, includes over 3,600 emoji. https://emojipedia.org/
+}
+
+// Current room state, that message is going to be sent by bot to participants on "Participant joined" event
+message RoomState {
+  ChatHistory last_chat_history = 1;
+  Statistics statistics = 2;
+}
+
+// Host messages
+// Add Listings for Listings update specifically instead of super set LiveMessage/ChatMessage sth (the Any Type).
+// Room/event name(id) will not be included in data bytes as it's included in (livekit) sendData API directly.
+// repeated will promise the (different) listing order per event.
+// Once super set is required, like LiveMessage { optional Listings listings } is good for deciding this message is used
+// for updating listing or not since optional keyword will gen has_field method to know the field are set or not.
+message Listings {
+  repeated Listing listings = 1;
+}
+
+
+message Listing {
+  int64 listing_id = 1;
+  optional bool is_active = 2; // show=true, hidden=false, unset will be decided by optional which gen has_field in PB3.
+  optional ListingAvailabilty listing_availability = 3;
+}
+
+
+enum ListingAvailabilty {
+  IN_STOCK = 0;
+  ALMOST_GONE = 1; // LAST ITEMS
+  OUT_OF_STOCK = 2;
+}
+
+
+// Bot messages
+// The message for storing chat messages
+message ChatHistory {
+  repeated Chat chat_messages = 1;
+  int32 offset = 2; // The current cursor position
+}
+
+// It is used for storing statistics that is calculated by bot
+message Statistics {
+  optional int32 unique_viewer_count = 1; // The total unique numbers of users that are joined to the stream
+  optional int32 likes_count = 2; // Total likes count for the stream
+}
+
+// The request to the bot to get chat history
+message ChatHistoryRequest { // To get bot_id (participant_id of bot) you need to get room metadata and read that value
+  int32 offset = 1; // Is used as cursor(current position) from where to start getting data
+  int32 limit = 2;  // That request supports two direction of getting history, forward, backward. To use forward way use positive numbers, to use backward way use negative numbers
+}
+
+// The response from the bot to get chat history
+message ChatHistoryResponse {
+  ChatHistory chat_history = 1;
+}
